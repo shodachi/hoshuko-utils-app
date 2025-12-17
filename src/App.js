@@ -6,14 +6,20 @@ import _, { reverse } from 'lodash';
 import JsBarcode from 'jsbarcode'
 const { DateTime } = require("luxon");
 
+const StudentView = {
+  CARD_VIEW: "CARD_VIEW",
+  LIST_VIEW: "LIST_VIEW"
+}
 
 function App() {
   const [bookUsersPage, setBookUsersPage] = useState([]);
+  const [studentView, setStudentView] = useState([]);
+  const bookLogo = require('./hoshuko-icon.png');
 
   const convertToEnjuUserCSV= (hoshukoStudentList) => {
     const enjuUserList = hoshukoStudentList.map(convertHoshukoStudentToEnjuUser)
 
-    const unparseContent = Papa.unparse(enjuUserList);
+    const unparseContent = Papa.unparse(enjuUserList, {delimiter: "\t"});
 
     createDownloadableCSVFile(unparseContent)
   }
@@ -27,7 +33,7 @@ function App() {
 
     const importFileName = `hoshuko-lib-import-${DateTime.now().toFormat('yyyy-mm-dd')}.tsv`;
 
-    element.download = importFileName;
+    element.download = importFileName
     document.body.appendChild(element);
     element.click();
   }
@@ -39,9 +45,9 @@ function App() {
 
     enjuUser.username = hoskukoStudent["学籍番号"]
     enjuUser.user_number = hoskukoStudent["学籍番号"]
-    enjuUser.full_name = hoskukoStudent["名前"]
+    enjuUser.full_name = hoskukoStudent["氏名"]
     enjuUser.email = ""
-    enjuUser.full_name_transcription = hoskukoStudent["よみがな"]
+    enjuUser.full_name_transcription = hoskukoStudent["ふりがな"]
     enjuUser.role = "User"
     enjuUser.user_group = "students"
     enjuUser.library = "hoshuko_library"
@@ -63,9 +69,9 @@ function App() {
   const convertHoshukoStudentToBookcard = (hoskukoStudent) => {
       return {
         id: hoskukoStudent["学籍番号"],
-        name: hoskukoStudent["児童・生徒の氏名"],
+        name: hoskukoStudent["氏名"],
         user_number:  hoskukoStudent["学籍番号"],
-        name_hiragana: hoskukoStudent["氏名ふりがな "],
+        name_hiragana: hoskukoStudent["ふりがな"],
         year: gakunenToYearMap[hoskukoStudent["学年"]],
         gakunen: hoskukoStudent["学年"],
         gakunenJapanese: gakunenToGakunenJapaneseMap[hoskukoStudent["学年"]],
@@ -84,9 +90,6 @@ function App() {
     "中2":8,
     "中3":9
   }
-
-
-  
 
   const gakunenToGakunenJapaneseMap = {
     "小1":"小一",
@@ -115,12 +118,25 @@ function App() {
   const createEnjuUserCards = () => {
     if (!_.isEmpty(inputFileRef.current.files)) {
       Papa.parse(inputFileRef.current.files[0],{header: true, complete: function(results){
-          console.log(results)
+          console.log(results.data);
           const students = results.data.map(convertHoshukoStudentToBookcard);
           setBookUsersPage(splitByNumberAndYear(students,12))
       }});
+      setStudentView(StudentView.CARD_VIEW);
     }
   }
+
+  const createStudentList = () => {
+    console.log("createStudentList");
+    if (!_.isEmpty(inputFileRef.current.files)) {
+      Papa.parse(inputFileRef.current.files[0],{header: true, complete: function(results){
+          const students = results.data.map(convertHoshukoStudentToBookcard);
+          setBookUsersPage(splitByNumberAndYear(students,20))
+      }});
+      setStudentView(StudentView.LIST_VIEW);
+    }
+  }
+
 
   const splitByNumberAndYear = (studentArray, splitNumber) => {
     
@@ -129,13 +145,11 @@ function App() {
     const pages = []
 
     for (const [key, value] of Object.entries(studentsPerYear)) {
-      const studentsSlices = _.chunk(value, 12);
-      console.log(studentsSlices)
+      const studentsSlices = _.chunk(value, splitNumber);
       for(const students of studentsSlices){
           pages.push(students)
       }
     }
-    console.log(pages);
 
     return pages
 }
@@ -143,7 +157,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>補修校図書ユーザツール</h1>
+        <h1><img alt="補修校図書室" width={40} src={bookLogo} style={{marginRight: '10px', verticalAlign: 'middle'}} />補修校図書ユーザツール</h1>
       </header>
       <div className="container">
       <div className="settings">
@@ -153,9 +167,11 @@ function App() {
                 ref={inputFileRef}
                 />
           <br/><br/>     
-          <button onClick={createEnjuUserCards}>カード作成する</button>
-          <br/>  
-          <button onClick={createEnjuUserImportFile}>インポートファイル作成する</button>
+          <button onClick={createEnjuUserCards}>生徒名札を作成する</button>
+          <br/><br/>  
+          <button onClick={createEnjuUserImportFile}>生徒図書システムファイルを作成する</button>
+          <br/><br/>  
+          <button onClick={createStudentList}>生徒図書リストを作成する</button>
 
         </div>
           
@@ -163,7 +179,11 @@ function App() {
       
       <div className="sheets">
         {bookUsersPage.map((bookUsers, index) => {
-            return <UserCardSheet key={index} bookUsers={bookUsers}></UserCardSheet>
+            if(studentView === StudentView.CARD_VIEW) {
+              return <UserCardSheet key={index} bookUsers={bookUsers}></UserCardSheet>
+            }else{
+              return <UserListSheet key={index} bookUsers={bookUsers}></UserListSheet>
+            }
          })
         }
       </div>
@@ -175,7 +195,7 @@ function App() {
 export default App;
 
 const UserCard = (props: any) => {
-  const bookLogo = require('./book-icon.png'); 
+  const bookLogo = require('./hoshuko-icon.png'); 
 
   const svgElement = useRef(null)
   let tempNumber = props.usernumber
@@ -236,9 +256,7 @@ const UserCardFront = (props: any) => {
         <div>{props.user.name}</div>
       </div>
     ) 
-  }
-
-  
+  }  
 }
 
 const UserCardSheet = (props: any) => {
@@ -276,6 +294,30 @@ const UserCardSheet = (props: any) => {
       {props.bookUsers.map((user) => {
               return <UserCardFront key={user.user_number} user={user}></UserCardFront>
           })}
+    </section>
+  </>
+  )
+}
+
+const UserListSheet = (props: any) => {
+
+  return (
+  <>
+    <section className={'sheet'}
+    style={{
+        paddingTop: '0mm',
+        paddingLeft: '0mm',
+        display: 'grid',
+        gridTemplateColumns: `repeat(4, 90mm)`,
+        gridTemplateRows: `repeat(5, 54mm)`,
+        gridGGap: `0px`,
+        
+    }}>
+          
+      {props.bookUsers.map((user) => {
+              return <UserCard key={user.user_number} username={user.name} usernumber={user.user_number}></UserCard>
+          })}
+          <div style={{position: 'absolute', left: "272mm", top: "10mm", writingMode: "vertical-rl"}}>{props.bookUsers[0].gakunenJapanese}</div>
     </section>
   </>
   )
