@@ -17,6 +17,7 @@ function App() {
   const [studentView, setStudentView] = useState([]);
   const [validationMessage, setValidationMessage] = useState('');
   const [isFileValid, setIsFileValid] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState('');
   const bookLogo = require('./hoshuko-icon.png');
 
   const requiredColumns = ['学籍番号', '氏名', 'ふりがな', '学年'];
@@ -157,6 +158,7 @@ function App() {
   const handleFileChange = () => {
     if (!_.isEmpty(inputFileRef.current.files)) {
       const file = inputFileRef.current.files[0];
+      setSelectedFileName(file.name);
       
       if (isExcelFile(file.name)) {
         parseExcelFile(file, (result) => {
@@ -175,6 +177,7 @@ function App() {
     } else {
       setValidationMessage('');
       setIsFileValid(false);
+      setSelectedFileName('');
     }
   };
 
@@ -273,11 +276,40 @@ function App() {
       <div className="settings">
         <div>
           <p>生徒リスト</p>
-          <input type="file" 
-                ref={inputFileRef}
-                onChange={handleFileChange}
-                accept=".csv,.tsv,.xlsx,.xls"
-                />
+          <div style={{position: 'relative', display: 'inline-block'}}>
+            <input 
+              type="file" 
+              ref={inputFileRef}
+              onChange={handleFileChange}
+              accept=".csv,.tsv,.xlsx,.xls"
+              style={{
+                position: 'absolute',
+                left: '-9999px',
+                opacity: 0
+              }}
+              id="fileInput"
+            />
+            <label 
+              htmlFor="fileInput"
+              style={{
+                display: 'inline-block',
+                padding: '8px 16px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                border: 'none',
+                fontSize: '14px'
+              }}
+            >
+              ファイルを選択
+            </label>
+            {selectedFileName && (
+              <span style={{marginLeft: '10px', fontSize: '14px', color: '#666'}}>
+                {selectedFileName}
+              </span>
+            )}
+          </div>
           {validationMessage && (
             <div style={{
               margin: '10px 0',
