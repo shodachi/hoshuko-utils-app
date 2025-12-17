@@ -2,6 +2,7 @@ import './App.sass'
 import React,{useEffect, useRef, useState} from 'react';
 import Papa from 'papaparse'
 import _, { reverse } from 'lodash';
+import * as XLSX from 'xlsx';
 
 import JsBarcode from 'jsbarcode'
 const { DateTime } = require("luxon");
@@ -14,7 +15,25 @@ const StudentView = {
 function App() {
   const [bookUsersPage, setBookUsersPage] = useState([]);
   const [studentView, setStudentView] = useState([]);
+  const [validationMessage, setValidationMessage] = useState('');
+  const [isFileValid, setIsFileValid] = useState(false);
   const bookLogo = require('./hoshuko-icon.png');
+
+  const requiredColumns = ['学籍番号', '氏名', 'ふりがな', '学年'];
+
+  const validateColumns = (headers) => {
+    const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+    
+    if (missingColumns.length > 0) {
+      setValidationMessage(`必要な列が不足しています: ${missingColumns.join(', ')}`);
+      setIsFileValid(false);
+      return false;
+    } else {
+      setValidationMessage('✓ ファイルの形式が正しいです');
+      setIsFileValid(true);
+      return true;
+    }
+  };
 
   const convertToEnjuUserCSV= (hoshukoStudentList) => {
     const enjuUserList = hoshukoStudentList.map(convertHoshukoStudentToEnjuUser)
@@ -107,32 +126,123 @@ function App() {
 
   const inputFileRef = React.useRef();
 
-  const createEnjuUserImportFile = () => {
+  const isExcelFile = (filename) => {
+    return filename.endsWith('.xlsx') || filename.endsWith('.xls');
+  };
+
+  const parseExcelFile = (file, callback) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (jsonData.length > 0) {
+        const headers = jsonData[0];
+        const rows = jsonData.slice(1).map(row => {
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
+        });
+        callback({ data: rows, headers: headers });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleFileChange = () => {
     if (!_.isEmpty(inputFileRef.current.files)) {
-      Papa.parse(inputFileRef.current.files[0],{header: true, complete: function(results){
-        convertToEnjuUserCSV(results.data)
-      }});
+      const file = inputFileRef.current.files[0];
+      
+      if (isExcelFile(file.name)) {
+        parseExcelFile(file, (result) => {
+          validateColumns(result.headers);
+        });
+      } else {
+        Papa.parse(file, {
+          header: true,
+          preview: 1, // Only parse the first row to get headers
+          complete: function(results) {
+            const headers = results.meta.fields || [];
+            validateColumns(headers);
+          }
+        });
+      }
+    } else {
+      setValidationMessage('');
+      setIsFileValid(false);
+    }
+  };
+
+  const createEnjuUserImportFile = () => {
+    if (!isFileValid) {
+      alert('有効なファイルを選択してください');
+      return;
+    }
+    if (!_.isEmpty(inputFileRef.current.files)) {
+      const file = inputFileRef.current.files[0];
+      
+      if (isExcelFile(file.name)) {
+        parseExcelFile(file, (result) => {
+          convertToEnjuUserCSV(result.data);
+        });
+      } else {
+        Papa.parse(file, {header: true, complete: function(results){
+          convertToEnjuUserCSV(results.data)
+        }});
+      }
     }
   }
 
   const createEnjuUserCards = () => {
+    if (!isFileValid) {
+      alert('有効なファイルを選択してください');
+      return;
+    }
     if (!_.isEmpty(inputFileRef.current.files)) {
-      Papa.parse(inputFileRef.current.files[0],{header: true, complete: function(results){
-          console.log(results.data);
-          const students = results.data.map(convertHoshukoStudentToBookcard);
-          setBookUsersPage(splitByNumberAndYear(students,12))
-      }});
+      const file = inputFileRef.current.files[0];
+      
+      if (isExcelFile(file.name)) {
+        parseExcelFile(file, (result) => {
+          console.log(result.data);
+          const students = result.data.map(convertHoshukoStudentToBookcard);
+          setBookUsersPage(splitByNumberAndYear(students,12));
+        });
+      } else {
+        Papa.parse(file, {header: true, complete: function(results){
+            console.log(results.data);
+            const students = results.data.map(convertHoshukoStudentToBookcard);
+            setBookUsersPage(splitByNumberAndYear(students,12))
+        }});
+      }
       setStudentView(StudentView.CARD_VIEW);
     }
   }
 
   const createStudentList = () => {
     console.log("createStudentList");
+    if (!isFileValid) {
+      alert('有効なファイルを選択してください');
+      return;
+    }
     if (!_.isEmpty(inputFileRef.current.files)) {
-      Papa.parse(inputFileRef.current.files[0],{header: true, complete: function(results){
-          const students = results.data.map(convertHoshukoStudentToBookcard);
-          setBookUsersPage(splitByNumberAndYear(students,20))
-      }});
+      const file = inputFileRef.current.files[0];
+      
+      if (isExcelFile(file.name)) {
+        parseExcelFile(file, (result) => {
+          const students = result.data.map(convertHoshukoStudentToBookcard);
+          setBookUsersPage(splitByNumberAndYear(students,20));
+        });
+      } else {
+        Papa.parse(file, {header: true, complete: function(results){
+            const students = results.data.map(convertHoshukoStudentToBookcard);
+            setBookUsersPage(splitByNumberAndYear(students,20))
+        }});
+      }
       setStudentView(StudentView.LIST_VIEW);
     }
   }
@@ -165,13 +275,45 @@ function App() {
           <p>生徒リスト</p>
           <input type="file" 
                 ref={inputFileRef}
+                onChange={handleFileChange}
+                accept=".csv,.tsv,.xlsx,.xls"
                 />
-          <br/><br/>     
-          <button onClick={createEnjuUserCards}>生徒名札を作成する</button>
+          {validationMessage && (
+            <div style={{
+              margin: '10px 0',
+              padding: '8px',
+              borderRadius: '4px',
+              backgroundColor: isFileValid ? '#d4edda' : '#f8d7da',
+              color: isFileValid ? '#155724' : '#721c24',
+              border: `1px solid ${isFileValid ? '#c3e6cb' : '#f5c6cb'}`
+            }}>
+              {validationMessage}
+            </div>
+          )}
+          <br/>     
+          <button 
+            onClick={createEnjuUserCards}
+            disabled={!isFileValid}
+            style={{opacity: isFileValid ? 1 : 0.5}}
+          >
+            生徒名札を作成する
+          </button>
           <br/><br/>  
-          <button onClick={createEnjuUserImportFile}>生徒図書システムファイルを作成する</button>
+          <button 
+            onClick={createEnjuUserImportFile}
+            disabled={!isFileValid}
+            style={{opacity: isFileValid ? 1 : 0.5}}
+          >
+            生徒図書システムファイルを作成する
+          </button>
           <br/><br/>  
-          <button onClick={createStudentList}>生徒図書リストを作成する</button>
+          <button 
+            onClick={createStudentList}
+            disabled={!isFileValid}
+            style={{opacity: isFileValid ? 1 : 0.5}}
+          >
+            生徒図書リストを作成する
+          </button>
 
         </div>
           
