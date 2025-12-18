@@ -265,7 +265,13 @@ function App() {
     }
 
     return pages
-}
+  }
+
+  const handlePrint = () => {
+    window.print();
+  }
+
+  const hasGeneratedCards = bookUsersPage.length > 0;
 
   return (
     <div className="App">
@@ -276,7 +282,7 @@ function App() {
       <div className="settings">
         <div>
           <p>生徒リスト</p>
-          <div style={{position: 'relative', display: 'inline-block'}}>
+          <div className="file-input-container">
             <input 
               type="file" 
               ref={inputFileRef}
@@ -289,63 +295,59 @@ function App() {
               }}
               id="fileInput"
             />
-            <label 
-              htmlFor="fileInput"
-              style={{
-                display: 'inline-block',
-                padding: '8px 16px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                border: 'none',
-                fontSize: '14px'
-              }}
-            >
+            <label htmlFor="fileInput">
               ファイルを選択
             </label>
             {selectedFileName && (
-              <span style={{marginLeft: '10px', fontSize: '14px', color: '#666'}}>
+              <span className="file-name">
                 {selectedFileName}
               </span>
             )}
           </div>
+          
           {validationMessage && (
-            <div style={{
-              margin: '10px 0',
-              padding: '8px',
-              borderRadius: '4px',
-              backgroundColor: isFileValid ? '#d4edda' : '#f8d7da',
-              color: isFileValid ? '#155724' : '#721c24',
-              border: `1px solid ${isFileValid ? '#c3e6cb' : '#f5c6cb'}`
-            }}>
+            <div className={`validation-message ${isFileValid ? 'valid' : 'invalid'}`}>
               {validationMessage}
             </div>
           )}
-          <br/>     
+          
           <button 
             onClick={createEnjuUserCards}
             disabled={!isFileValid}
-            style={{opacity: isFileValid ? 1 : 0.5}}
           >
             生徒名札を作成する
           </button>
-          <br/><br/>  
+          
           <button 
             onClick={createEnjuUserImportFile}
             disabled={!isFileValid}
-            style={{opacity: isFileValid ? 1 : 0.5}}
           >
             生徒図書システムファイルを作成する
           </button>
-          <br/><br/>  
+          
           <button 
             onClick={createStudentList}
             disabled={!isFileValid}
-            style={{opacity: isFileValid ? 1 : 0.5}}
           >
             生徒図書リストを作成する
           </button>
+
+          {hasGeneratedCards && (
+            <div style={{marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid #e2e8f0'}}>
+              <p style={{fontSize: '1.1rem', fontWeight: '600', color: '#4a5568', marginBottom: '1rem'}}>
+                印刷・保存
+              </p>
+              <button 
+                onClick={handlePrint}
+                style={{
+                  background: 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)',
+                  boxShadow: '0 4px 15px rgba(72, 187, 120, 0.3)'
+                }}
+              >
+                🖨️ 印刷・PDF保存
+              </button>
+            </div>
+          )}
 
         </div>
           
